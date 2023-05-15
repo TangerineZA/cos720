@@ -1,7 +1,8 @@
-import ecdsa
+from ecdsa import SigningKey, NIST256p, VerifyingKey, BadSignatureError
+from hashlib import sha256
+from ecdsa.util import sigencode_der
 import datetime
 import threading
-import hashlib
 
 class Block:
     def __init__(self, hash, previous_hash, timestamp, transaction_data, nonce) -> None:
@@ -25,10 +26,10 @@ class Transaction:
         return f"Transaction(sender={self.sender}, recipient={self.recipient}, amount={self.amount}, signature={self.signature})"
 
 class Wallet:
-    def __init__(self, public_key, private_key):
+    def __init__(self, public_key : VerifyingKey, private_key : SigningKey, balance = 0):
         self.public_key = public_key
         self.private_key = private_key
-        self.balance = 0
+        self.balance = balance
 
     def get_balance(self):
         return self.balance
@@ -50,14 +51,25 @@ class Wallet:
         return transaction
 
     def sign_transaction(self, transaction):
-        return ecdsa.sign(transaction.to_bytes(), self.private_key)
+        signature = self.private_key.sign_deterministic(
+            transaction,
+            hashfunc=sha256,
+            signencode=sigencode_der
+        )
+        return signature
 
-    def verify_transaction(self, transaction):
-        return ecdsa.verify(transaction.to_bytes(), transaction.signature, self.public_key)
+    def verify_transaction(self, transaction, signature):
+        try:
+            ret = self.public_key.verify(signature, transaction, sha256, sigdecode=sigencode_der)
+            assert ret
+            return True
+        except BadSignatureError:
+            return False
 
 class Miner:
-    def __init__(self, wallet):
+    def __init__(self, wallet, reward = 1):
         self.wallet = wallet
+        self.reward = reward
 
     def mine_block(self, transactions, num_threads = 10):
         for i in range(num_threads):
@@ -82,6 +94,9 @@ class Miner:
             block.nonce += 1
 
         self.add_block_to_chain(block)
+
+        if self.is_valid_block(block):
+            self.wallet.add_balance(self.reward)
 
     def get_previous_hash(self):
         if len(self.blockchain) == 0:
@@ -200,22 +215,7 @@ class Network:
 
         return transaction
 
-class Crypto_helper:
-    def __init__(self) -> None:
-        self.sha256 = hashlib.sha256()
-
-    def get_hash(self, data):
-        self.sha256.update(data)
-        return self.sha256.hexdigest()
-
 def main():
-    # Generate private and public keys
-    private_key = generate_private_key
-    public_key = generate_public_key(private_key=private_key)
-
-    # Create a wallet with the private and public keys
-    wallet = Wallet(private_key, public_key)
-
     # Create a miner
     miner = Miner(wallet)
 
@@ -227,6 +227,9 @@ def main():
 
     # Start the miner
     miner.start()
+
+    # Get the user's wallet credentials
+    private_key = str(input("Please enter your wallet's private key."))
 
     # Get the user's input
     while True:
@@ -258,8 +261,6 @@ def main():
 
         elif choice == "4":
             break
-
-
 
 if __name__ == "__main__":
     main()
