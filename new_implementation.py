@@ -51,11 +51,11 @@ class BlockChain:
         return block
 
     @staticmethod
-    def check_validity(block, prev_block):
+    def check_validity(block : Block, prev_block : Block):
         if prev_block.index + 1 != block.index:
             return False
 
-        elif prev_block.calculate_hash != block.prev_hash:
+        elif prev_block.calculate_hash() != block.prev_hash:
             return False
 
         elif not BlockChain.verifying_proof(block.proof_no,
@@ -66,6 +66,10 @@ class BlockChain:
             return False
 
         return True
+    
+    def check_chain_validity():
+        # TODO
+        pass
 
     def new_data(self, sender, recipient, quantity):
         self.current_data.append({
@@ -133,6 +137,12 @@ class BlockChain:
             block_data['data'],
             timestamp=block_data['timestamp'])
 
+class Transaction:
+    def __init__(self, sender, receiver, amount):
+        self.sender = sender
+        self.receiver = receiver
+        self.amount = amount
+
 class User:
     def __init__(self, uid, blockchain : BlockChain) -> None:
         self.uid = uid
@@ -149,13 +159,29 @@ class User:
                     user_balance = user_balance - float(data["quantity"])
         return user_balance
     
+    # TODO - define user_object vs user_id
+    def send_currency(self, receiver, amount):
+        balance = self.calculate_balance()
+        if amount > balance:
+            return False
+        else:
+            # add sign transaction
+            # find way to implement transaction handling - how are we adding these to the chain?
+            transaction = Transaction(self.uid, receiver, amount)
+            # going to need to add to pool in Network, and then let all miners add those to the chain
+            return True
+    
 class Network:
     def __init__(self):
         self.nodes : list[Node] = []
         self.blockchain : BlockChain = BlockChain()
+        self.unresolved_transactions : list[Transaction] = []
 
     def register_node(self, node):
         self.nodes.append(node)
+
+    def add_transaction(self, transaction : Transaction):
+        self.unresolved_transactions.append(transaction)
 
     def get_blockchain(self):
         return self.blockchain
@@ -239,6 +265,30 @@ class Node:
         
 def main():
     pass
+    """
+    PLAN FOR MAIN:
+    - make two users
+    - mine a block
+    - move mined currency to other account
+    - demo network
+    - basically just run through documentation's FR list and show that each item works
+    """
+
+    network = Network()
+    user_bob = User("bob", network.blockchain)
+    user_alice = User("alice", network.blockchain)
+
+    # TODO - rectify user_string vs user_object issues
+    node_bob = Node("bob")
+    node_bob.connect_to_network(network)
+    node_bob.mine()
+
+    bob_initial_balance = user_bob.calculate_balance() # should be 1 as reward for mining
+    alice_initial_balance = user_alice.calculate_balance # should be 0
+
+    # TODO add transaction signing and sending logic to user_object
+    # do a transaction and prove that the money was sent
+    
 
 if __name__ == "__main__":
     main()
