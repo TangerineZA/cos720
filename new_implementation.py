@@ -148,30 +148,59 @@ class User:
                 elif data["sender"] == self.user:
                     user_balance = user_balance - float(data["quantity"])
         return user_balance
+    
+class Network:
+    def __init__(self):
+        self.nodes : list[Node] = []
+        self.blockchain : BlockChain = BlockChain()
 
-def calculate_balance(blockchain : BlockChain, user):
-    user_balance = 0
-    for block in blockchain.chain:
-        for data in block.data:
-            # print(data)
-            if data["recipient"] == user:
-                user_balance = user_balance + float(data["quantity"])
-            elif data["sender"] == user:
-                user_balance = user_balance - float(data["quantity"])
-    return user_balance
+    def register_node(self, node):
+        self.nodes.append(node)
 
-class Miner:
-    def __init__(self, blockchain, user) -> None:
-        self.blockchain = blockchain
+    def get_blockchain(self):
+        return self.blockchain
+
+    def broadcast(self):
+        longest_chain = None
+        max_length = len(self.blockchain.chain)
+        
+        # Get the longest valid blockchain from the network
+        # TODO - add verification steps
+        for node in self.nodes:
+            length = len(node.blockchain.chain)
+            if length > max_length and self.blockchain.check_chain_validity(node.blockchain.chain):
+                max_length = length
+                longest_chain = node.blockchain.chain
+        
+        # If the longest blockchain in the network is not the current node's blockchain, replace it
+        if longest_chain:
+            self.blockchain = longest_chain
+
+    def consensus(self):
+        # This function will use the broadcast function to resolve conflicts
+        self.broadcast()
+
+class Node:
+    def __init__(self, user) -> None:
         self.user = user
+        self.blockchain = None
+        self.network : Network = None
+
+    def connect_to_network(self, network : Network):
+        self.network = network
+        network.register_node(self)
+        self.blockchain = network.get_blockchain
+
+    def receive_broadcast(self, blockchain : BlockChain):
+        self.blockchain = blockchain
 
     def mine(self, num_iterations : int = -1):
         if num_iterations > 0:
             for i in range (num_iterations):
-                _mine(self.blockchain, self.user)
+                self._mine(self.blockchain, self.user)
         else:
             while(True):
-                _mine(self.blockchain, self.user)
+                self._mine(self.blockchain, self.user)
 
     def _mine(blockchain : BlockChain, user):
         last_block = blockchain.latest_block
@@ -186,74 +215,14 @@ class Miner:
         )
 
         last_hash = last_block.calculate_hash
+        # TODO: ensure that current block in sequence hasn't already been mined
+        # do this by checking sequential block numbers/IDs
         block = blockchain.construct_block(proof_no, last_hash)
 
         print("Mined successfully!")
 
-
-def mine(blockchain : BlockChain, user, num_iterations : int = -1):
-    if num_iterations > 0:
-        for i in range (num_iterations):
-            _mine(blockchain, user)
-    else:
-        while(True):
-            _mine(blockchain, user)
-
-def _mine(blockchain : BlockChain, user):
-    last_block = blockchain.latest_block
-    last_proof_no = last_block.proof_no
-    proof_no = blockchain.proof_of_work(last_proof_no)
-
-    blockchain.new_data(
-        sender="0",  # it implies that this node has created a new block
-        recipient=user,
-        # creating a new block (or identifying the proof number) is awarded with 1
-        quantity=1,
-    )
-
-    last_hash = last_block.calculate_hash
-    block = blockchain.construct_block(proof_no, last_hash)
-
-    print("Mined successfully!")
-
 def main():
-    blockchain = BlockChain()
-
-    print("***Mining fccCoin about to start***")
-    print(blockchain.chain)
-
-    last_block = blockchain.latest_block
-    last_proof_no = last_block.proof_no
-    proof_no = blockchain.proof_of_work(last_proof_no)
-
-    blockchain.new_data(
-        sender="0",  # it implies that this node has created a new block
-        recipient="John",  # let's send John some coins!
-        # creating a new block (or identifying the proof number) is awarded with 1
-        quantity=1,
-    )
-
-    last_hash = last_block.calculate_hash
-    block = blockchain.construct_block(proof_no, last_hash)
-
-    print("***Mining has been successful***")
-    print(blockchain.chain)
-
-    print("Let's create a transaction whereby John recieves 10 coins")
-    blockchain.new_data(
-        sender="0",  # it implies that this node has created a new block
-        recipient="John",  # let's send Quincy some coins!
-        # creating a new block (or identifying the proof number) is awarded with 1
-        quantity=10,
-    )
-
-    last_hash = last_block.calculate_hash
-    block = blockchain.construct_block(proof_no, last_hash)
-    print("John's new balance: " + str(calculate_balance(blockchain, "John")))
-    print(blockchain.chain)
-
-    mine(blockchain=blockchain, user="John", num_iterations=2)
-    print("John's new balance: " + str(calculate_balance(blockchain, "John")))
+    pass
 
 if __name__ == "__main__":
     main()
