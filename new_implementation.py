@@ -175,10 +175,22 @@ class Network:
         # If the longest blockchain in the network is not the current node's blockchain, replace it
         if longest_chain:
             self.blockchain = longest_chain
+            return True
+        else:
+            return False
+        
+    def update_nodes(self):
+        for node in self.nodes:
+            node.receive_broadcast(self.blockchain)
 
     def consensus(self):
         # This function will use the broadcast function to resolve conflicts
         self.broadcast()
+
+    def broadcast_mined(self, proposed_blockchain : BlockChain):
+        if len(proposed_blockchain.chain) > len(self.blockchain) and proposed_blockchain.check_validity == True:
+            self.blockchain = proposed_blockchain
+            self.update_nodes()
 
 class Node:
     def __init__(self, user) -> None:
@@ -202,14 +214,14 @@ class Node:
             while(True):
                 self._mine(self.blockchain, self.user)
 
-    def _mine(blockchain : BlockChain, user):
+    def _mine(self, blockchain : BlockChain, user):
         last_block = blockchain.latest_block
         last_proof_no = last_block.proof_no
         proof_no = blockchain.proof_of_work(last_proof_no)
 
         blockchain.new_data(
-            sender="0",  # it implies that this node has created a new block
-            recipient=user,
+            sender = "0",  # it implies that this node has created a new block
+            recipient = user,
             # creating a new block (or identifying the proof number) is awarded with 1
             quantity=1,
         )
@@ -219,8 +231,12 @@ class Node:
         # do this by checking sequential block numbers/IDs
         block = blockchain.construct_block(proof_no, last_hash)
 
-        print("Mined successfully!")
+        blockchain.chain.append(block)
 
+        if self.network.broadcast(blockchain) == True:
+            print("Mined successfully!")
+
+        
 def main():
     pass
 
