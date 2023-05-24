@@ -2,7 +2,7 @@
 import hashlib
 import time
 
-# global variabile for difficulty
+# global variable for difficulty
 DIFFICULTY = 4
 
 class Block:
@@ -133,6 +133,22 @@ class BlockChain:
             block_data['data'],
             timestamp=block_data['timestamp'])
 
+class User:
+    def __init__(self, uid, blockchain : BlockChain) -> None:
+        self.uid = uid
+        self.blockchain = blockchain
+
+    def calculate_balance(self):
+        user_balance = 0
+        for block in self.blockchain.chain:
+            for data in block.data:
+                # print(data)
+                if data["recipient"] == self.user:
+                    user_balance = user_balance + float(data["quantity"])
+                elif data["sender"] == self.user:
+                    user_balance = user_balance - float(data["quantity"])
+        return user_balance
+
 def calculate_balance(blockchain : BlockChain, user):
     user_balance = 0
     for block in blockchain.chain:
@@ -143,6 +159,37 @@ def calculate_balance(blockchain : BlockChain, user):
             elif data["sender"] == user:
                 user_balance = user_balance - float(data["quantity"])
     return user_balance
+
+class Miner:
+    def __init__(self, blockchain, user) -> None:
+        self.blockchain = blockchain
+        self.user = user
+
+    def mine(self, num_iterations : int = -1):
+        if num_iterations > 0:
+            for i in range (num_iterations):
+                _mine(self.blockchain, self.user)
+        else:
+            while(True):
+                _mine(self.blockchain, self.user)
+
+    def _mine(blockchain : BlockChain, user):
+        last_block = blockchain.latest_block
+        last_proof_no = last_block.proof_no
+        proof_no = blockchain.proof_of_work(last_proof_no)
+
+        blockchain.new_data(
+            sender="0",  # it implies that this node has created a new block
+            recipient=user,
+            # creating a new block (or identifying the proof number) is awarded with 1
+            quantity=1,
+        )
+
+        last_hash = last_block.calculate_hash
+        block = blockchain.construct_block(proof_no, last_hash)
+
+        print("Mined successfully!")
+
 
 def mine(blockchain : BlockChain, user, num_iterations : int = -1):
     if num_iterations > 0:
