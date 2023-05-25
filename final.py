@@ -5,6 +5,8 @@ from ecdsa import SigningKey, VerifyingKey
 
 CHALLENGE_MESSAGE = "Success!"
 MINING_REWARD = 1.0
+DIFFICULTY = 2
+LEADING_CHARACTERS = '0'
 
 class User:
     def __init__(self):
@@ -79,7 +81,7 @@ class Block:
     # Lastly, then, hash that new string and return the resultant hash value.
     def calculate_hash(self) -> str :
         hashed_transactions : str = hashlib.sha256(str(self.transactions).encode('utf-8')).hexdigest()
-        combined_string : str = hashed_transactions + str(self.index) + str(self.timestamp) + self.prev_hash
+        combined_string : str = hashed_transactions + str(self.index) + str(self.timestamp) + self.prev_hash + self.nonce
         final_hash : str = hashlib.sha256(combined_string.encode('utf-8')).hexdigest()
         return final_hash
 
@@ -103,6 +105,9 @@ class Block:
             self.transactions.append(t)
         except:
             print("Error in adding transaction!")
+
+    def set_nonce(self, nonce : int):
+        self.nonce = nonce
     
 
 class Blockchain:
@@ -225,19 +230,38 @@ class Node:
     # Mining method must check the length of its network's chain before pushing the one it is working on...
     # ... and update its own chain to the the network's current chain if its one is shorter.
     def mine(self, num_iterations : int):
-        # get all existing unfinished transactions
-        transaction_list = self.network.get_transactions()
-        # add them all to the new block
-        new_block = Block()
-        for transaction in transaction_list:
-            new_block.add_transaction(transaction)
-        
-        # add one extra transaction with own reward
-        reward_transaction = Transaction(MINING_REWARD, None, self.user)
-        new_block.add_transaction(reward_transaction)
+        for i  in range (num_iterations):
+            # get all existing unfinished transactions
+            transaction_list = self.network.get_transactions()
+            # add them all to the new block
+            new_block = Block()
+            for transaction in transaction_list:
+                new_block.add_transaction(transaction)
 
-        # now work out hash with nonce
-        pass
+            # add one extra transaction with own reward
+            reward_transaction = Transaction(MINING_REWARD, None, self.user)
+            new_block.add_transaction(reward_transaction)
+
+            if new_block.verify_block() == False:
+                break
+
+            # now work out hash with nonce
+            n = 0
+            h = new_block.calculate_hash()
+            while h[ 0:DIFFICULTY ] != LEADING_CHARACTERS * DIFFICULTY:
+                n = n + 1
+                new_block.set_nonce(n)
+                h = new_block.calculate_hash()
+
+            # add new block to chain
+            self.blockchain.add_block(new_block)
+
+            # now check if network chain is shorter than new chain
+            if len(self.network.blockchain.chain) < self.blockchain:
+                self.network.update_chain(self.blockchain)
+                print("Node completed mining process successfully.")
+            else:
+                break
 
 def main():
     bob : User = User()
