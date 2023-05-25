@@ -4,6 +4,7 @@ import ecdsa
 from ecdsa import SigningKey, VerifyingKey
 
 CHALLENGE_MESSAGE = "Success!"
+MINING_REWARD = 1.0
 
 class User:
     def __init__(self):
@@ -71,6 +72,7 @@ class Block:
         self.index : int = index
         self.timestamp = datetime.now()
         self.prev_hash : str = prev_hash
+        self.nonce = ""
 
     # First, calculate hash of transactions, to string format.
     # Secondly, make a new string combining that hash with the other data contained in the block.
@@ -175,6 +177,68 @@ class Blockchain:
             print("Can't construct genesis block: chain already has blocks.")
             return False
 
+# For demo purposes, create the network and add a transaction to the pool, then run the miner and make a new block that includes that transaction.
+class Network:
+    def __init__(self, blockchain : Blockchain) -> None:
+        self.blockchain : Blockchain = blockchain
+        self.unresolved_transactions : list[Transaction] = []
+
+    def add_transaction(self, t : Transaction) -> None:
+        try:
+            self.unresolved_transactions.append(t)
+        except:
+            print("Error adding transaction to unresolved transaction list!")
+
+    # Not requesting signature as parameter as this function makes the transaction sign itself as it is generated, and before it enters...
+    # ... the pool of unsigned transactions.
+    def create_transaction(self, sender : User, reciever : User, amount : float) -> Transaction:
+        try:
+            t : Transaction = Transaction(amount=amount, sender=sender, receiver=reciever)
+            t.sign_transaction
+            self.add_transaction(t)
+            return t
+        except:
+            print("Error creating transaction in network!")
+            return None
+        
+    def get_transactions(self):
+        return self.unresolved_transactions
+        
+    def update_chain(self, b : Blockchain):
+        if b.check_chain_validity and len(b.chain) > len(self.blockchain.chain):
+            self.blockchain = b
+        else:
+            print("Rejected newly mined chain! Either invalid or shorter than existing chain.")
+
+
+# Note: Node wil always consult to Network, but Network never needs to consult individual Nodes.
+# This is to avoid issues when Nodes disconnect, and also to avoid circular dependencies.
+class Node:
+    def __init__(self, blockchain : Blockchain, user : User, network = None) -> None:
+        self.blockchain : Blockchain = blockchain
+        self.user : User = user
+        self.network : Network = network
+
+    def connect(self, n) -> None:
+        self.network = n
+
+    # Mining method must check the length of its network's chain before pushing the one it is working on...
+    # ... and update its own chain to the the network's current chain if its one is shorter.
+    def mine(self, num_iterations : int):
+        # get all existing unfinished transactions
+        transaction_list = self.network.get_transactions()
+        # add them all to the new block
+        new_block = Block()
+        for transaction in transaction_list:
+            new_block.add_transaction(transaction)
+        
+        # add one extra transaction with own reward
+        reward_transaction = Transaction(MINING_REWARD, None, self.user)
+        new_block.add_transaction(reward_transaction)
+
+        # now work out hash with nonce
+        pass
+
 def main():
     bob : User = User()
     alice : User = User()
@@ -230,14 +294,14 @@ CHECKLIST:
         Transaction - Done
         Block       - Done
         Blockchain  - Done
-        Node        - TODO
+        Node        - Done
         Network     - TODO
 
     Test classes:
         User        - Done
         Transaction - Done
         Block       - Done
-        Blockchain  - TODO
+        Blockchain  - Done
         Node        - TODO
         Network     - TODO
 
