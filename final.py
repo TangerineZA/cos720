@@ -72,7 +72,6 @@ class Block:
         self.timestamp = datetime.now()
         self.prev_hash : str = prev_hash
 
-    # TODO - test this method
     # First, calculate hash of transactions, to string format.
     # Secondly, make a new string combining that hash with the other data contained in the block.
     # Lastly, then, hash that new string and return the resultant hash value.
@@ -82,7 +81,6 @@ class Block:
         final_hash : str = hashlib.sha256(combined_string.encode('utf-8')).hexdigest()
         return final_hash
 
-    # TODO - test method
     # Used in future by "mining" method - once a block has been constructed, it must verify that block. Only then...
     # ... can it add its own transaction to the block, as a reward.
     # Iterate through all transactions in a block, and run "verify_transaction" on each.
@@ -95,7 +93,7 @@ class Block:
             if transaction.verify_transaction(t_pk) == False:
                 print("Failed to verify block!")
                 return False
-        print("Block verified!")
+        print("Block verified.")
         return True
     
     def add_transaction(self, t : Transaction) -> None:
@@ -103,7 +101,72 @@ class Block:
             self.transactions.append(t)
         except:
             print("Error in adding transaction!")
+    
+
+class Blockchain:
+    def __init__(self) -> None:
+        self.chain : list[Block] = []
+        self.chain_hash : str = "" # was going to do a Merkle tree, but this was an easier and equally viable solution
+
+    # Iterates through whole chain, using each block's "verify_block" method.
+    # TODO - also check hash correctness and whether previous blocks' hashes line up
+    def check_chain_validity(self) -> bool:
+        i : int = 0
+        for block in self.chain:
+            if block.verify_block() == False:
+                print("Blockchain unverifiable! Error at block index " + str(i))
+                return False
+            i = i + 1
+        return True
+    
+    # Calculates fresh value of chain hash and returns it as a string
+    # TODO - contemplate whether Merkle root would prevent overly-long strings from being unhashable in the future
+    def get_chain_hash(self) -> str:
         
+        # first, add all blocks' hashes together
+        s : str = ""
+        for block in self.chain:
+            s = s + block.calculate_hash
+        
+        # then calculate overall hash
+        h : str = hashlib.sha256(s.encode('utf-8')).hexdigest()
+
+        return h
+    
+    # Calculates current value of chain hash using "get_merkle_root", and then...
+    # ...checks whether it's the same as the provided root, returning True if it is and False if not.
+    def verify_chain_hash(self, proposed_mr) -> bool:
+        calculated_mr = self.get_chain_hash()
+        if calculated_mr == proposed_mr:
+            return True
+        else:
+            print("Incorrect Merkle root provided!")
+            return False
+
+    # Calculates chain hash using "get_merkle_root" and then updates this blockchain's merkle root attribute
+    # TODO - contemplate whether this should even be a stored field, or only a calculated one?
+    def update_chain_hash(self) -> None:
+        self.chain_hash = self.get_chain_hash()
+
+
+    def add_block(self, block : Block):
+        try:
+            self.chain.append(block)
+            self.update_chain_hash()
+        except:
+            print("Error adding new block to chain!")
+    
+    # Simply checks whether there are already blocks in the chain, and if not, then it constructs the genesis block.
+    def construct_genesis(self) -> bool:
+        if len(self.chain) == 0:
+            genesis_block = Block(0, "")
+            self.chain.append(genesis_block)
+            self.update_chain_hash()
+            return True
+        else:
+            print("Can't construct genesis block: chain already has blocks.")
+            return False
+
 
 def main():
     bob : User = User()
@@ -112,7 +175,7 @@ def main():
     print("Let's first check that Bob is who he says he is...")
     bob_login : bool = bob.test_challenge(bob.private_key)
     if bob_login == True:
-        print("Bob successfully logged in!")
+        print("Bob successfully logged in.")
     else:
         print("Bob is an imposter!")
 
@@ -124,7 +187,7 @@ def main():
     print("Does the transaction verify correctly?")
     transaction_verification : bool = bobs_first_transaction.verify_transaction(bob.public_key)
     if transaction_verification == True:
-        print("Transaction verified!")
+        print("Transaction verified.")
     else:
         print("Transaction fraudulent!")
 
@@ -147,7 +210,7 @@ CHECKLIST:
         User        - Done
         Transaction - Done
         Block       - Done
-        Blockchain  - TODO
+        Blockchain  - TODO - In progress
         Node        - TODO
         Network     - TODO
 
