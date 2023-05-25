@@ -185,6 +185,9 @@ class Network:
 
     def get_blockchain(self):
         return self.blockchain
+    
+    def get_unresolved_transaction(self):
+        return self.unresolved_transactions[0]
 
     def broadcast(self):
         longest_chain = None
