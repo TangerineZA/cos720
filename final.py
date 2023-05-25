@@ -15,7 +15,7 @@ class User:
     # Checks that a provided private key's signature and the original signature match.
     def test_challenge(self, private_key : SigningKey):
         testing_data = private_key.sign_deterministic(CHALLENGE_MESSAGE.encode('utf-8')).hex()
-        print("Testing data: " + testing_data + "\nSignature: " + self.signature)
+        # print("Testing data: " + testing_data + "\nSignature: " + self.signature)
         if self.signature == testing_data:
             return True
         else:
@@ -97,6 +97,13 @@ class Block:
                 return False
         print("Block verified!")
         return True
+    
+    def add_transaction(self, t : Transaction) -> None:
+        try:
+            self.transactions.append(t)
+        except:
+            print("Error in adding transaction!")
+        
 
 def main():
     bob : User = User()
@@ -109,14 +116,10 @@ def main():
     else:
         print("Bob is an imposter!")
 
-    print("\n\n")
-
     print("Let's not create a transaction: not going to be used on the network, but just to be sure transactions can be created correctly.")
     bobs_first_transaction : Transaction = Transaction(amount=10, sender=bob, receiver=alice)
     bobs_first_transaction.sign_transaction(bob.private_key)
     print(bobs_first_transaction.get_complete_representation())
-
-    print("\n\n")
 
     print("Does the transaction verify correctly?")
     transaction_verification : bool = bobs_first_transaction.verify_transaction(bob.public_key)
@@ -125,7 +128,14 @@ def main():
     else:
         print("Transaction fraudulent!")
 
-
+    print("Let's test the Block class out now...")
+    block = Block(0)
+    block.add_transaction(bobs_first_transaction)
+    print("Does the block verify?")
+    if block.verify_block():
+        print("It does!")
+    else:
+        print("It does not - block unverifiable!")
     
 
 if __name__ == "__main__":
@@ -144,7 +154,8 @@ CHECKLIST:
     Test classes:
         User        - Done
         Transaction - Done
-        Block       - TODO
+        Block       - Done
+        Blockchain  - TODO
         Node        - TODO
         Network     - TODO
 
