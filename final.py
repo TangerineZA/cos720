@@ -109,41 +109,46 @@ class Blockchain:
         self.chain_hash : str = "" # was going to do a Merkle tree, but this was an easier and equally viable solution
 
     # Iterates through whole chain, using each block's "verify_block" method.
-    # TODO - also check hash correctness and whether previous blocks' hashes line up
     def check_chain_validity(self) -> bool:
         i : int = 0
+        prev_hash = ""
         for block in self.chain:
             if block.verify_block() == False:
                 print("Blockchain unverifiable! Error at block index " + str(i))
                 return False
+            if block.index > 0:
+                if block.prev_hash != prev_hash:
+                    print("Blockchain invalid due to past block mismatch! Error at block index " + str(i))
+                    print(str(block.prev_hash) + " vs. " + str(prev_hash))
+                    return False
+            prev_hash = block.calculate_hash()
             i = i + 1
         return True
     
     # Calculates fresh value of chain hash and returns it as a string
     # TODO - contemplate whether Merkle root would prevent overly-long strings from being unhashable in the future
     def get_chain_hash(self) -> str:
-        
         # first, add all blocks' hashes together
         s : str = ""
         for block in self.chain:
-            s = s + block.calculate_hash
+            s = s + block.calculate_hash()
         
         # then calculate overall hash
         h : str = hashlib.sha256(s.encode('utf-8')).hexdigest()
 
         return h
     
-    # Calculates current value of chain hash using "get_merkle_root", and then...
+    # Calculates current value of chain hash using "get_chain_hash", and then...
     # ...checks whether it's the same as the provided root, returning True if it is and False if not.
-    def verify_chain_hash(self, proposed_mr) -> bool:
-        calculated_mr = self.get_chain_hash()
-        if calculated_mr == proposed_mr:
+    def verify_chain_hash(self, proposed_root_hash) -> bool:
+        calculated_root_hash = self.get_chain_hash()
+        if calculated_root_hash == proposed_root_hash:
             return True
         else:
-            print("Incorrect Merkle root provided!")
+            print("Incorrect root hash provided!")
             return False
 
-    # Calculates chain hash using "get_merkle_root" and then updates this blockchain's merkle root attribute
+    # Calculates chain hash using "get_chain_hash" and then updates this blockchain's merkle root attribute
     # TODO - contemplate whether this should even be a stored field, or only a calculated one?
     def update_chain_hash(self) -> None:
         self.chain_hash = self.get_chain_hash()
@@ -151,6 +156,9 @@ class Blockchain:
 
     def add_block(self, block : Block):
         try:
+            if len(self.chain) > 0:
+                block.prev_hash = self.chain[-1].calculate_hash()
+            block.index = len(self.chain)
             self.chain.append(block)
             self.update_chain_hash()
         except:
@@ -166,7 +174,6 @@ class Blockchain:
         else:
             print("Can't construct genesis block: chain already has blocks.")
             return False
-
 
 def main():
     bob : User = User()
@@ -196,10 +203,22 @@ def main():
     block.add_transaction(bobs_first_transaction)
     print("Does the block verify?")
     if block.verify_block():
-        print("It does!")
+        print("It does.")
     else:
         print("It does not - block unverifiable!")
     
+    print("Now let's see the blockchain itself working:")
+    bchain = Blockchain()
+    bchain.construct_genesis()
+    bchain.add_block(block)
+    for block in bchain.chain:
+        print(block.index)
+    print("Does the blockchain verify?")
+    verification : bool = bchain.check_chain_validity()
+    if verification:
+        print("It does.")
+    else:
+        print("It does not.")
 
 if __name__ == "__main__":
     main()
@@ -210,7 +229,7 @@ CHECKLIST:
         User        - Done
         Transaction - Done
         Block       - Done
-        Blockchain  - TODO - In progress
+        Blockchain  - Done
         Node        - TODO
         Network     - TODO
 
