@@ -62,7 +62,7 @@ class Transaction:
     # Check that signature decodes to the same thing as the calcualted hash of the transaction.
     def verify_transaction(self, public_key : VerifyingKey):
         own_hash = self.get_hash()
-        if self.signature == None:
+        if self.signature is None:
             print("Transaction not signed!")
             return False
         return public_key.verify(signature=self.signature, data=own_hash.encode('utf-8'))
@@ -92,8 +92,17 @@ class Block:
     # Using that "sender" object, get their public key, and feed it into the "verify_transaction" method.
     # If any transaction if incorrect, abort the check and return False: otherwise, return True.
     def verify_block(self) -> bool:
+        if self.index == 0:
+            return True
+
         for transaction in self.transactions:
             t_pk : VerifyingKey = transaction.sender.get_public_key()
+            if t_pk is None:
+                print("Public key of superuser is None!")
+                exit()
+            if transaction.signature == None:
+                print("Transaction signature is None in verify_block! " + str(self.index))
+                exit()
             if transaction.verify_transaction(t_pk) == False:
                 print("Failed to verify block!")
                 return False
@@ -174,7 +183,7 @@ class Blockchain:
     # Simply checks whether there are already blocks in the chain, and if not, then it constructs the genesis block.
     def construct_genesis(self) -> bool:
         if len(self.chain) == 0:
-            genesis_block = Block(0, "")
+            genesis_block = Block(1, "")
             self.chain.append(genesis_block)
             self.update_chain_hash()
             return True
@@ -187,6 +196,7 @@ class Network:
     def __init__(self, blockchain : Blockchain) -> None:
         self.blockchain : Blockchain = blockchain
         self.unresolved_transactions : list[Transaction] = []
+        self.network_superuser = User()
 
     def add_transaction(self, t : Transaction) -> None:
         try:
@@ -206,7 +216,7 @@ class Network:
             print("Error creating transaction in network!")
             return None
         
-    def get_transactions(self):
+    def get_unresolved_transactions(self):
         return self.unresolved_transactions
         
     def update_chain(self, b : Blockchain):
@@ -232,18 +242,33 @@ class Node:
     def mine(self, num_iterations : int):
         for i  in range (num_iterations):
             # get all existing unfinished transactions
-            transaction_list = self.network.get_transactions()
+            transaction_list = self.network.get_unresolved_transactions()
             # add them all to the new block
-            new_block = Block()
+            new_block = Block(index=len(self.blockchain.chain))
             for transaction in transaction_list:
                 new_block.add_transaction(transaction)
 
             # add one extra transaction with own reward
-            reward_transaction = Transaction(MINING_REWARD, None, self.user)
+            reward_transaction = Transaction(amount=MINING_REWARD, sender=self.network.network_superuser, receiver=self.user)
+            reward_transaction.sign_transaction(self.network.network_superuser.private_key)
+            if reward_transaction.signature == None:
+                print("Reward transaction still has no signature!")
+                exit()
             new_block.add_transaction(reward_transaction)
-
+            print("a")
+            if reward_transaction.verify_transaction(self.network.network_superuser.get_public_key()) == False:
+                print("Reward transaction unverifiable!")
+                exit()
+            print("b")
+            if new_block.transactions[-1].signature == None:
+                print("New block's last transaction signature is None!")
+                exit()
+            print("c")
             if new_block.verify_block() == False:
+                print("Error in verifying new block!")
                 break
+            
+            print("Block made, now to calculate nonce...")
 
             # now work out hash with nonce
             n = 0
@@ -308,6 +333,20 @@ def main():
     else:
         print("It does not.")
 
+    
+    print("Let's see if the Network can be generated now...")
+    network : Network = Network(bchain)
+    print(str(network.get_unresolved_transactions()))
+    for block in network.blockchain.chain:
+        print(block.index)
+
+    network.create_transaction(bob, alice, 0.5)
+    print(str(network.get_unresolved_transactions()))
+
+    print("With the Network seemingly working, we now have to test the Nodes that are connected to it.")
+    node : Node = Node(network.blockchain, bob, network)
+    node.mine(1)
+
 if __name__ == "__main__":
     main()
 
@@ -319,7 +358,7 @@ CHECKLIST:
         Block       - Done
         Blockchain  - Done
         Node        - Done
-        Network     - TODO
+        Network     - Done
 
     Test classes:
         User        - Done
@@ -333,5 +372,5 @@ CHECKLIST:
 
     Record demo:    - TODO
 
-    Generate UML:   - TODO
+    Generate UML:   - Done
 """
