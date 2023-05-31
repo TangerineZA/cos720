@@ -2,6 +2,7 @@ from datetime import datetime
 import hashlib
 import ecdsa
 from ecdsa import SigningKey, VerifyingKey
+import copy
 
 CHALLENGE_MESSAGE = "Success!"
 MINING_REWARD = 1.0
@@ -38,7 +39,7 @@ class Transaction:
         self.signature = None
 
     def get_basic_representation(self) -> str:
-        s : str = str(self.amount) + " sent by " + str(self.sender.public_key) + " to " + str(self.receiver.public_key) + " at " + str(self.timestamp)
+        s : str = str(self.amount) + " sent by " + str(self.sender.public_key.to_string()) + " to " + str(self.receiver.public_key.to_string()) + " at " + str(self.timestamp)
         return s
     
     def get_hash(self) -> str:
@@ -81,7 +82,7 @@ class Block:
     # Lastly, then, hash that new string and return the resultant hash value.
     def calculate_hash(self) -> str :
         hashed_transactions : str = hashlib.sha256(str(self.transactions).encode('utf-8')).hexdigest()
-        combined_string : str = hashed_transactions + str(self.index) + str(self.timestamp) + self.prev_hash + self.nonce
+        combined_string : str = hashed_transactions + str(self.index) + str(self.timestamp) + self.prev_hash + str(self.nonce)
         final_hash : str = hashlib.sha256(combined_string.encode('utf-8')).hexdigest()
         return final_hash
 
@@ -93,10 +94,12 @@ class Block:
     # If any transaction if incorrect, abort the check and return False: otherwise, return True.
     def verify_block(self) -> bool:
         if self.index == 0:
+            print("Genesis block always verified.")
             return True
 
         for transaction in self.transactions:
             t_pk : VerifyingKey = transaction.sender.get_public_key()
+            # print(transaction.get_basic_representation())
             if t_pk is None:
                 print("Public key of superuser is None!")
                 exit()
@@ -183,7 +186,7 @@ class Blockchain:
     # Simply checks whether there are already blocks in the chain, and if not, then it constructs the genesis block.
     def construct_genesis(self) -> bool:
         if len(self.chain) == 0:
-            genesis_block = Block(1, "")
+            genesis_block = Block(0, "")
             self.chain.append(genesis_block)
             self.update_chain_hash()
             return True
@@ -230,7 +233,7 @@ class Network:
 # This is to avoid issues when Nodes disconnect, and also to avoid circular dependencies.
 class Node:
     def __init__(self, blockchain : Blockchain, user : User, network = None) -> None:
-        self.blockchain : Blockchain = blockchain
+        self.blockchain : Blockchain = copy.deepcopy(blockchain)
         self.user : User = user
         self.network : Network = network
 
@@ -246,6 +249,7 @@ class Node:
             # add them all to the new block
             new_block = Block(index=len(self.blockchain.chain))
             for transaction in transaction_list:
+                transaction.sign_transaction(transaction.sender.private_key)
                 new_block.add_transaction(transaction)
 
             # add one extra transaction with own reward
@@ -255,15 +259,12 @@ class Node:
                 print("Reward transaction still has no signature!")
                 exit()
             new_block.add_transaction(reward_transaction)
-            print("a")
             if reward_transaction.verify_transaction(self.network.network_superuser.get_public_key()) == False:
                 print("Reward transaction unverifiable!")
                 exit()
-            print("b")
             if new_block.transactions[-1].signature == None:
                 print("New block's last transaction signature is None!")
                 exit()
-            print("c")
             if new_block.verify_block() == False:
                 print("Error in verifying new block!")
                 break
@@ -275,14 +276,22 @@ class Node:
             h = new_block.calculate_hash()
             while h[ 0:DIFFICULTY ] != LEADING_CHARACTERS * DIFFICULTY:
                 n = n + 1
+                # print("Testing with nonce: " + str(n))
                 new_block.set_nonce(n)
                 h = new_block.calculate_hash()
+
+            print("Success - found correct nonce: " + str(n) + ", producting hash " + str(h))
 
             # add new block to chain
             self.blockchain.add_block(new_block)
 
+            print("Own blockchain updated with new block.")
+            print("New chain length: " + str(len(self.blockchain.chain)))
+            print("Network blockchain length: " + str(len(self.network.blockchain.chain)))
+
             # now check if network chain is shorter than new chain
-            if len(self.network.blockchain.chain) < self.blockchain:
+            if len(self.network.blockchain.chain) < len(self.blockchain.chain):
+                print("Updating blockchain - broadcast time.")
                 self.network.update_chain(self.blockchain)
                 print("Node completed mining process successfully.")
             else:
@@ -312,7 +321,7 @@ def main():
         print("Transaction fraudulent!")
 
     print("Let's test the Block class out now...")
-    block = Block(0)
+    block = Block(1)
     block.add_transaction(bobs_first_transaction)
     print("Does the block verify?")
     if block.verify_block():
@@ -336,15 +345,17 @@ def main():
     
     print("Let's see if the Network can be generated now...")
     network : Network = Network(bchain)
-    print(str(network.get_unresolved_transactions()))
     for block in network.blockchain.chain:
         print(block.index)
 
     network.create_transaction(bob, alice, 0.5)
-    print(str(network.get_unresolved_transactions()))
 
     print("With the Network seemingly working, we now have to test the Nodes that are connected to it.")
+
     node : Node = Node(network.blockchain, bob, network)
+    
+    print("Network chain length: " + str(len(network.blockchain.chain)))
+
     node.mine(1)
 
 if __name__ == "__main__":
